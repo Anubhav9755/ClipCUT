@@ -1,0 +1,9 @@
+anthropic>=0.40            # Claude (optional: only if analysis.provider is claude)
+pyyaml>=6.0
+fastapi>=0.110             # web server
+uvicorn>=0.29
+python-multipart>=0.0.9    # file uploads
+numpy>=1.26                # loudness analysis
+faster-whisper>=1.0        # Hindi speech recognition (only needed when no .srt is uploaded)
+scenedetect[opencv-headless]>=0.6   # used by the older command-line agent only
+# for tests:  pip install pytest httpx

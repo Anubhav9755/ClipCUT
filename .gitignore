@@ -1,0 +1,33 @@
+# Environment variables
+.env
+.env.*
+
+# Google OAuth credentials
+client_secret.json
+data/youtube_token.json
+**/client_secret.json
+**/client_secret_*.json
+
+# Videos
+data/videos/
+videos/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+
+# Images
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.bmp
+*.tiff
+
+# Dependencies
+node_modules/
+venv/
+.venv/
+__pycache__/

@@ -1,0 +1,62 @@
+# ---- ClipCUT settings: edit this file, not the code ----
+
+source_language: hi          # language spoken in the episode (en, hi, te, ...)
+languages: [en, hi]      # languages to publish in (CHANGE to your launch languages)
+
+claude_model: claude-haiku-5-5   # cheap and good enough; use claude-sonnet-5-5 for higher quality
+
+whisper:
+  model: small               # tiny / base / small / medium / large-v3 (bigger = more accurate, slower)
+  device: auto               # auto / cpu / cuda
+  compute_type: int8         # int8 for CPU, float16 for GPU
+
+clips:
+  per_episode: 8             # how many clips to pick from each episode
+  min_seconds: 15
+  max_seconds: 60
+  snap_to_scene_seconds: 2.0 # move cut points to a scene change if one is this close
+
+subtitles:
+  max_chars_per_cue: 42
+  max_seconds_per_cue: 3.5
+  fonts:                     # install Noto fonts on the machine (fonts-noto)
+    default: "Noto Sans"
+    hi: "Noto Sans Devanagari"
+    te: "Noto Sans Telugu"
+    ta: "Noto Sans Tamil"
+    kn: "Noto Sans Kannada"
+
+# Names/terms the AI must never translate or change
+keep_terms: ["Tenali Rama", "Tenali", "Krishnadevaraya"]
+
+paths:
+  work_dir: work
+  db: agent.db
+  review_csv: review.csv
+
+publishing:
+  dry_run: true              # true = only log what would be posted. Set false once APIs are connected.
+  timezone: Asia/Kolkata
+  slots: ["12:30", "19:00"]  # daily posting times per platform per language
+  platforms: [youtube, instagram, facebook, tiktok, x]
+
+# ---- ClipCUT server (upload -> analysis -> 5 proposed clips) ----
+analysis:
+  provider: claude          # claude | gemini | heuristic (no AI; for testing without keys)
+  claude_model: claude-sonnet-5-5
+  gemini_model: gemini-flash-latest   # model names change often: check Google AI Studio
+  clips_per_video: 5
+  series_context: '"Krishna", a Hindi-language animated series about Krishna''s childhood (characters include Kans, Putna, Nand Baba, Yashoda Maiyya)'
+  min_seconds: 45   # core clip length (before padding)
+  max_seconds: 55
+  pad_seconds: 5               # extra context shown on each side so the editor can trim
+  snap_tolerance_seconds: 2.0  # move cut points to a sentence/shot boundary if one is this close
+  proxy_height: 720
+  scene_threshold: 0.35        # lower = more shot changes detected
+  caption_conf_threshold: 0.75 # below this, auto-captions default to OFF (calibrate on real episodes)
+  asr:
+    model: small               # fast first test on any laptop. For best Hindi quality use large-v3 (needs a GPU, ~3 GB download)
+    language: hi
+    initial_prompt: "कृष्ण, कंस, पूतना, नंद बाबा, यशोदा मैया, लाला"   # nudges Whisper to write Devanagari and spell these names
+    device: auto
+    compute_type: int8         # int8 on CPU; use float16 on an NVIDIA GPU
