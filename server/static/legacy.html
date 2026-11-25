@@ -1,0 +1,722 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClipCUT</title>
+<style>
+  :root { --bg:#fafaf9; --card:#fff; --ink:#1f2937; --mute:#6b7280; --line:#e5e7eb; --accent:#b45309; --ok:#15803d; --warn:#b45309; --bad:#b91c1c; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111214; --card:#1a1c1f; --ink:#e5e7eb; --mute:#9ca3af; --line:#2a2d31; --accent:#f59e0b; --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  header { padding:16px 24px; border-bottom:1px solid var(--line); font-weight:700; font-size:20px; }
+  header span { color:var(--accent); }
+  main { display:grid; grid-template-columns:320px 1fr; gap:20px; padding:20px 24px; max-width:1300px; margin:0 auto; }
+  @media (max-width:800px) { main { grid-template-columns:1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  h2 { font-size:14px; margin:0 0 10px; color:var(--mute); text-transform:uppercase; letter-spacing:.05em; }
+  label { display:block; font-size:13px; color:var(--mute); margin:10px 0 4px; }
+  input[type=file] { width:100%; font-size:13px; }
+  button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:8px 14px; font-size:14px; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+  button:disabled { opacity:.5; cursor:default; }
+  .vid { padding:10px; border:1px solid var(--line); border-radius:8px; margin-top:8px; cursor:pointer; }
+  .vid.sel { border-color:var(--accent); }
+  .vid small { color:var(--mute); display:block; }
+  .bar { height:6px; background:var(--line); border-radius:3px; margin-top:6px; overflow:hidden; }
+  .bar i { display:block; height:100%; background:var(--accent); }
+  video { width:100%; max-height:420px; background:#000; border-radius:8px; }
+  .clip { display:flex; gap:12px; align-items:flex-start; padding:12px; border:1px solid var(--line); border-radius:8px; margin-top:10px; }
+  .rank { font-weight:700; font-size:20px; color:var(--accent); min-width:24px; }
+  .clip .t { font-weight:600; }
+  .meta { color:var(--mute); font-size:13px; }
+  .tag { display:inline-block; font-size:12px; padding:1px 8px; border-radius:10px; border:1px solid var(--line); margin-right:6px; }
+  .ok { color:var(--ok); } .off { color:var(--warn); } .bad { color:var(--bad); }
+  .note { font-size:13px; color:var(--warn); margin:8px 0; }
+  .empty { color:var(--mute); padding:30px; text-align:center; }
+  /* ---- clip editor ---- */
+  .ed { position:fixed; inset:0; z-index:50; background:var(--bg); display:flex; flex-direction:column; }
+  .ed[hidden] { display:none; }
+  .ed-top { display:flex; align-items:center; gap:12px; padding:10px 20px; border-bottom:1px solid var(--line); }
+  .ed-top .grow { flex:1; min-width:0; }
+  .ed-top .name { font-weight:600; }
+  .ed-body { flex:1; min-height:0; display:grid; grid-template-columns:1fr 300px; gap:16px; padding:16px 20px 0; }
+  @media (max-width:800px) { .ed-body { grid-template-columns:1fr; overflow:auto; } }
+  .ed-stagebox { min-height:0; display:flex; align-items:center; justify-content:center; background:#000; border-radius:10px; overflow:hidden; }
+  .stage { position:relative; overflow:hidden; background:#000; user-select:none; touch-action:none; }
+  .stage video { position:absolute; inset:0; width:100%; height:100%; max-height:none; border-radius:0; }
+  .crop { position:absolute; top:0; bottom:0; border:2px solid var(--accent); box-shadow:0 0 0 9999px rgba(0,0,0,.6); cursor:ew-resize; }
+  .crop::after { content:""; position:absolute; inset:0; background:
+      linear-gradient(to right, transparent 33.2%, rgba(255,255,255,.25) 33.3%, transparent 33.5%, transparent 66.5%, rgba(255,255,255,.25) 66.6%, transparent 66.8%); }
+  .ed-side { display:flex; flex-direction:column; gap:10px; overflow:auto; }
+  .ed-side canvas { width:100%; max-width:270px; align-self:center; aspect-ratio:9/16; background:#000; border-radius:10px; }
+  .ed-side input[type=text] { width:100%; padding:8px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--ink); font:inherit; }
+  .ed-bottom { padding:12px 20px 16px; }
+  .tl { position:relative; height:44px; background:var(--card); border:1px solid var(--line); border-radius:8px; margin:8px 0; touch-action:none; cursor:pointer; }
+  .tl .core { position:absolute; top:0; bottom:0; background:color-mix(in srgb, var(--accent) 22%, transparent); }
+  .tl .dim { position:absolute; top:0; bottom:0; background:rgba(0,0,0,.45); }
+  .tl .h { position:absolute; top:-3px; bottom:-3px; width:12px; margin-left:-6px; background:var(--accent); border-radius:4px; cursor:ew-resize; }
+  .tl .ph { position:absolute; top:0; bottom:0; width:2px; background:var(--ink); pointer-events:none; }
+  .tl .kf { position:absolute; bottom:3px; width:10px; height:10px; margin-left:-5px; background:var(--card); border:2px solid var(--accent); transform:rotate(45deg); cursor:pointer; }
+  .tl .kf.pan { border-radius:50%; transform:none; }
+  .tl .kf.sel { background:var(--accent); }
+  .ed-row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .ed-row .meta { margin-left:auto; }
+  .keys { font-size:12px; color:var(--mute); }
+  .tl .kf.todo { border-style:dashed; opacity:.8; }
+  .tl .kf.done { border-color:var(--ok); }
+  .tl .kf.lowc { border-color:var(--bad); border-style:solid; }   /* uncertain suggestion: look at this scene first */
+  .tl .kf.done.sel { background:var(--ok); }
+  .ed kbd { border:1px solid var(--line); border-radius:4px; padding:0 5px; font-size:11px; }
+  /* ---- editor layout: everything fits on one screen ---- */
+  .ed-top { padding:6px 16px; }
+  .ed-body { grid-template-columns:minmax(0,1fr) auto 250px; grid-template-rows:minmax(0,1fr); gap:12px; padding:10px 16px 0; overflow:hidden; }
+  .ed-prev { min-height:0; display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .ed-prev h2 { margin:0; }
+  .pvwrap { position:relative; flex:1; min-height:0; width:var(--pvw, 180px); }
+  .pvwrap canvas { position:absolute; inset:0; width:100%; height:100%; border-radius:10px; background:#000; }
+  .ed-side { min-height:0; overflow:auto; gap:4px; }
+  .ed-side h2 { margin:8px 0 0; }
+  .ed-side label { margin:6px 0 2px; }
+  .ed-side label.chk { display:flex; gap:6px; align-items:center; color:var(--ink); }
+  .ed-side select { padding:6px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--ink); max-width:140px; }
+  .prog { font-weight:600; }
+  .ed-bottom { padding:6px 16px 8px; }
+  .tl { height:36px; margin:6px 0; }
+  .ed button { padding:6px 11px; font-size:13px; }
+  .ed-row { gap:6px; }
+  .keys { margin-top:4px; font-size:11px; }
+  .keys .note { margin:0 0 0 8px; font-size:12px; display:inline; }
+  @media (max-width:800px) {
+    .ed-body { grid-template-columns:1fr; grid-template-rows:none; overflow:auto; }
+    .pvwrap { height:320px; }
+  }
+  .acts { width:170px; flex:none; display:flex; flex-direction:column; gap:6px; }
+  .acts button, .acts .btn { width:100%; }
+  .acts .meta { display:flex; flex-direction:column; gap:6px; }
+  .acts .two { display:flex; gap:6px; } .acts .two > * { flex:1; width:auto; }
+  .btn { display:inline-block; text-align:center; text-decoration:none; border-radius:8px; padding:8px 14px; font-size:14px; background:var(--accent); color:#fff; }
+  .btn.ghost { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+  .modal { position:fixed; inset:0; z-index:70; background:rgba(0,0,0,.72); display:flex; align-items:center; justify-content:center; padding:16px; }
+  .modal[hidden] { display:none; }
+  .plbox { display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .plbox video { height:80vh; aspect-ratio:9/16; max-width:92vw; background:#000; border-radius:10px; }
+  .pobox { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; width:min(640px,100%); max-height:94vh; overflow:auto; }
+  .pobox .mhead { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .pobox textarea, .pobox input[type=text], .pobox select { width:100%; padding:8px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); font:inherit; }
+</style>
+</head>
+<body>
+<header>Clip<span>CUT</span> <a href="/stats" style="float:right;font-size:13px;font-weight:400;color:var(--mute)">Pilot stats</a></header>
+<div id="keywarn" class="note" style="padding:8px 24px;margin:0" hidden>The AI key is not set, so clips are picked by the basic no-AI picker. Add ANTHROPIC_API_KEY to the .env file next to run_server.py, restart the server, then click "Choose clips again".</div>
+<main>
+  <div>
+    <div class="card">
+      <h2>New episode</h2>
+      <label for="vf">Video file</label>
+      <input id="vf" type="file" accept="video/*,.mkv">
+      <label for="sf">Subtitle/script file (.srt), optional but most accurate</label>
+      <input id="sf" type="file" accept=".srt">
+      <p><button id="go">Upload and analyze</button> <span id="msg" class="meta"></span></p>
+    </div>
+    <div class="card" style="margin-top:16px"><h2>Episodes</h2><div id="list"></div></div>
+  </div>
+  <div class="card" id="detail"><div class="empty">Upload an episode, or pick one from the list.</div></div>
+</main>
+<div id="pl" class="modal" hidden><div class="plbox"><video id="plv" controls playsinline></video><div class="note" id="plErr"></div><button class="ghost" onclick="closePlayer()">Close</button></div></div>
+<div id="po" class="modal" hidden><div class="pobox">
+  <div class="mhead"><b>Post to YouTube</b><button class="ghost" onclick="closePost()">Close</button></div>
+  <div id="poConn" class="note"></div>
+  <label for="poTpl">Description template (Claude keeps its fixed lines and fills in the clip details)</label>
+  <textarea id="poTpl" rows="5"></textarea>
+  <p><button class="ghost" id="poGen">Regenerate with Claude</button> <span class="meta" id="poGenMsg"></span></p>
+  <label for="poTitle">Title</label><input type="text" id="poTitle" maxlength="100">
+  <label for="poDesc">Description</label><textarea id="poDesc" rows="8"></textarea>
+  <label for="poTags">Tags (comma separated)</label><input type="text" id="poTags">
+  <label for="poPriv">Visibility</label>
+  <select id="poPriv"><option value="private">Private (safest, check it on YouTube first)</option><option value="unlisted">Unlisted</option><option value="public">Public</option></select>
+  <p><button id="poGo">Approve and upload</button> <span class="meta" id="poMsg"></span></p>
+</div></div>
+<div id="ed" class="ed" hidden>
+  <div class="ed-top">
+    <div class="grow"><span class="name" id="edName"></span> <span class="meta" id="edSub"></span></div>
+    <button class="ghost" id="edClose">Close (Esc)</button>
+  </div>
+  <div class="ed-body">
+    <div class="ed-stagebox" id="edBox">
+      <div class="stage" id="stage">
+        <video id="ev" preload="auto" playsinline></video>
+        <div class="crop" id="crop"></div>
+      </div>
+    </div>
+    <div class="ed-prev">
+      <h2>9:16 preview</h2>
+      <div class="pvwrap" id="pvWrap"><canvas id="pv" width="270" height="480"></canvas></div>
+    </div>
+    <div class="ed-side">
+      <label for="edTitleIn" style="margin-top:0">Title</label>
+      <input type="text" id="edTitleIn">
+      <label class="chk"><input type="checkbox" id="edCap" checked> Captions on</label>
+      <div class="meta" id="capBadge"></div>
+      <h2>Scenes</h2>
+      <div class="prog" id="kfInfo">none</div>
+      <label>Selected keyframe</label>
+      <div class="ed-row">
+        <button class="ghost" id="kfMode">Cut</button>
+        <button class="ghost" id="kfDel">Delete</button>
+      </div>
+      <div class="ed-row"><button class="ghost" id="bCut">Mark scene cut here (C)</button></div>
+      <div class="ed-row"><button class="ghost" id="bSuggest">Suggest window positions</button></div>
+      <div class="meta" id="sugInfo"></div>
+      <label for="scSens">Detection sensitivity</label>
+      <div class="ed-row">
+        <select id="scSens">
+          <option value="0.3">Fewer cuts</option><option value="0.2">Normal</option>
+          <option value="0.15" selected>High (default)</option><option value="0.1">Higher</option><option value="0.06">Maximum</option>
+        </select>
+        <button class="ghost" id="kfReset">Redetect</button>
+      </div>
+    </div>
+  </div>
+  <div class="ed-bottom">
+    <div class="tl" id="tl"></div>
+    <div class="ed-row">
+      <button id="bPlay">Play</button>
+      <button class="ghost" id="bBack">&#9664; Frame</button>
+      <button class="ghost" id="bFwd">Frame &#9654;</button>
+      <button class="ghost" id="bPrevS">&#9664;&#9664; Scene</button>
+      <button id="bNextS">Next scene &#9654;&#9654;</button>
+      <button class="ghost" id="bKf">Extra keyframe (K)</button>
+      <button class="ghost" id="bSave">Save</button>
+      <button id="bApprove">Approve and next</button>
+      <span class="meta" id="edTime"></span>
+    </div>
+    <div class="keys"><kbd>Space</kbd> play &nbsp; <kbd>&larr;</kbd><kbd>&rarr;</kbd> frame (<kbd>Shift</kbd> = 1s) &nbsp; <kbd>N</kbd> next scene &nbsp; <kbd>P</kbd> previous &nbsp; <kbd>C</kbd> mark missed cut &nbsp; <kbd>K</kbd> extra keyframe &nbsp; <kbd>Del</kbd> remove keyframe &nbsp; Drag the bright window to reframe. <span class="note" id="edMsg"></span></div>
+  </div>
+</div>
+<script>
+let selected = null, lastClipsFor = null;
+const DEBUG = new URLSearchParams(location.search).has("debug");   // add ?debug=1 to the address to see transcript + stats
+const $ = id => document.getElementById(id);
+const fmt = s => { s = Math.round(s); return Math.floor(s/60) + ":" + String(s%60).padStart(2, "0"); };
+const esc = t => String(t ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+$("go").onclick = async () => {
+  const f = $("vf").files[0];
+  if (!f) { $("msg").textContent = "Choose a video first."; return; }
+  const fd = new FormData(); fd.append("file", f);
+  if ($("sf").files[0]) fd.append("script", $("sf").files[0]);
+  $("go").disabled = true; $("msg").textContent = "Uploading...";
+  try {
+    const r = await fetch("/api/videos", { method: "POST", body: fd });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const j = await r.json(); selected = j.id; lastClipsFor = null; $("msg").textContent = "Uploaded.";
+  } catch (e) { $("msg").textContent = "Failed: " + e.message; }
+  $("go").disabled = false; refresh();
+};
+
+async function refresh() {
+  const vids = await (await fetch("/api/videos")).json();
+  $("list").innerHTML = vids.length ? vids.map(v => `
+    <div class="vid ${v.id === selected ? "sel" : ""}" onclick="selectVid('${v.id}')">
+      ${esc(v.filename)}
+      <small>${v.status === "done" ? "Ready: " + v.clips.length + " clips" : v.status === "failed" ? '<span class="bad">Failed</span>' : esc(v.stage)}</small>
+      ${v.status === "processing" || v.status === "queued" ? `<div class="bar"><i style="width:${v.progress}%"></i></div>` : ""}
+    </div>`).join("") : '<div class="meta">Nothing yet.</div>';
+  const cur = vids.find(v => v.id === selected);
+  if (cur) { renderDetail(cur); updateRenders(cur); }
+}
+
+function selectVid(id) { selected = id; lastClipsFor = null; refresh(); }
+
+function renderDetail(v) {
+  if (v.status !== "done") {
+    lastClipsFor = null;
+    $("detail").innerHTML = v.status === "failed"
+      ? `<h2>${esc(v.filename)}</h2><p class="bad">Something went wrong: ${esc(v.error)}</p>`
+      : `<h2>${esc(v.filename)}</h2><p>${esc(v.stage)}...</p><div class="bar"><i style="width:${v.progress}%"></i></div>`;
+    return;
+  }
+  const key = v.id + ":" + v.clips.map(c => c.id).join(",");
+  if (key === lastClipsFor) return;           // don't rebuild the player every poll
+  lastClipsFor = key; curVid = v.id; curClips = v.clips;
+  const m = v.meta, warn = m.pick && m.pick.warning ? `<div class="note">${esc(m.pick.warning)}</div>` : "";
+  $("detail").innerHTML = `
+    <h2>${esc(v.filename)} (${fmt(v.duration)})</h2>
+    <video id="player" src="/api/videos/${v.id}/proxy" controls preload="metadata"></video>
+    ${DEBUG ? `<p class="meta">Transcript: ${esc(m.transcript_source)} (${m.segments} lines) &middot; ${m.shots} shot changes &middot; picked by: ${esc(m.pick ? m.pick.provider_used : "")}</p>` : ""}
+    ${warn}
+    ${v.clips.length ? v.clips.map(c => `
+      <div class="clip">
+        <div class="rank">${c.rank}</div>
+        <div style="flex:1">
+          <div class="t">${esc(c.title)}</div>
+          <div class="meta">${esc(c.reason)}</div>
+          <div class="meta">Core ${fmt(c.start)} to ${fmt(c.end)} (${Math.round(c.end - c.start)}s) &middot; with padding ${fmt(c.pad_start)} to ${fmt(c.pad_end)}</div>
+          <div style="margin-top:6px">
+            <span class="tag">score ${c.score}</span>
+            <span class="tag">${esc(c.source)}</span>
+            ${capTag(c)}
+          </div>
+        </div>
+        <div class="acts"><button class="ghost" onclick="playClip(${c.pad_start}, ${c.pad_end})">Play</button><button onclick="openEditor(${c.id})">${c.approved ? "&#10003; " : ""}Edit</button><div id="rend-${c.id}" class="meta"></div></div>
+      </div>`).join("") : '<div class="empty">No clips could be chosen.</div>'}
+    <p><button class="ghost" onclick="rechoose('${v.id}')">Choose clips again</button></p>
+    ${DEBUG ? `<details id="trbox"><summary>Transcript (${m.segments} lines): click a line to jump to it</summary><div id="tr" class="meta">Loading...</div></details>` : ""}`;
+  if (DEBUG) loadTranscript(v.id);
+}
+
+async function loadTranscript(id) {
+  const r = await fetch(`/api/videos/${id}/transcript`);
+  if (!r.ok) { $("tr").textContent = "No transcript."; return; }
+  const t = await r.json();
+  const whisper = t.source === "whisper";
+  const avg = t.segments.length ? t.segments.reduce((a, s) => a + s.conf, 0) / t.segments.length : 0;
+  $("tr").innerHTML = `<p>Source: <b>${esc(t.source)}</b>${whisper ? ` &middot; average confidence ${avg.toFixed(2)} (red = likely wrong)` : ""}</p>` +
+    t.segments.map(s => `<div class="line" onclick="seek(${s.start})" style="cursor:pointer;padding:2px 0;color:${!whisper || s.conf >= 0.8 ? "var(--ink)" : s.conf >= 0.6 ? "var(--warn)" : "var(--bad)"}">
+      <span class="meta">${fmt(s.start)}${whisper ? " &middot; " + s.conf.toFixed(2) : ""}</span> ${esc(s.text)}</div>`).join("");
+}
+function whenReady(p, fn) { if (p.readyState >= 1) fn(); else p.addEventListener("loadedmetadata", fn, { once: true }); }
+let stopAt = null;   // one global stop time, so an old clip can never pause a new one
+function seek(t) { const p = $("player"); stopAt = null; whenReady(p, () => { p.currentTime = t; p.play(); }); }
+
+function playClip(a, b) {
+  const p = $("player");
+  stopAt = b;
+  whenReady(p, () => { p.currentTime = a; p.play(); });
+  if (!p._hasStop) {
+    p._hasStop = true;
+    p.addEventListener("timeupdate", () => { if (stopAt !== null && p.currentTime >= stopAt) { p.pause(); stopAt = null; } });
+  }
+}
+async function rechoose(id) { await fetch(`/api/videos/${id}/rechoose`, { method: "POST" }); lastClipsFor = null; refresh(); }
+
+/* ================= Clip editor ================= */
+let curVid = null, curClips = [];
+let E = null;            // editor state
+const ev = () => $("ev");
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const FPS_LIST = [23.976, 24, 25, 29.97, 30, 50, 59.94, 60];
+
+async function openEditor(clipId) {
+  const clip = curClips.find(c => c.id === clipId);
+  if (!clip) return;
+  let saved = null;
+  try { saved = (await (await fetch(`/api/clips/${clipId}/edit`)).json()).edit; } catch (e) {}
+  E = {
+    clip, vid: curVid, fps: (saved && saved.fps) || 25,
+    start: saved ? saved.start : clip.start, end: saved ? saved.end : clip.end,
+    kfs: saved ? saved.keyframes : [],
+    sel: 0, title: saved ? saved.title : clip.title, captions: saved ? saved.captions_on : defaultCaptions(clip), cues: [],
+    approved: saved ? saved.approved : false, dirty: false, drag: null, raf: 0, secs: 0
+  };
+  const v = ev();
+  v.src = `/api/videos/${E.vid}/proxy`;
+  $("ed").hidden = false;
+  $("edName").textContent = `Clip ${clip.rank}`;
+  $("edTitleIn").value = E.title; $("edCap").checked = E.captions; $("edMsg").textContent = "";
+  v.onloadedmetadata = () => { fitStage(); v.currentTime = E.start; if (!saved) detectFps(); renderTimeline(); };
+  if (v.readyState >= 1) v.onloadedmetadata();
+  E.raf = requestAnimationFrame(tick);
+  const x = capLevel(clip);
+  $("capBadge").innerHTML = `Caption confidence: <span class="${x.cls}">${x.l}</span>` + (clip.caption_conf != null && clip.caption_conf !== "" ? ` (${Number(clip.caption_conf).toFixed(2)})` : "") +
+    (x.l === "low" && !E.captions ? ". Captions start off: check the preview before turning them on." : "");
+  fetch(`/api/clips/${clip.id}/captions`).then(r => r.json()).then(j => { if (E && E.clip.id === clip.id) E.cues = j.cues; }).catch(() => {});
+  if (!E.kfs.some(k => k.scene)) await buildScenes();
+}
+
+// One keyframe per scene, created automatically. The editor only reviews them (N = next scene).
+async function buildScenes() {
+  const c = E.clip, me = E;
+  $("edMsg").textContent = "Finding scene cuts...";
+  let cuts = [], err = "";
+  try {
+    const r = await fetch(`/api/clips/${c.id}/shots?threshold=${$("scSens").value}`);
+    if (r.ok) cuts = (await r.json()).cuts; else err = (await r.json()).detail || r.statusText;
+  } catch (e) { err = String(e); }
+  if (E !== me) return;
+  E.kfs = [c.pad_start, ...cuts].map(t => ({ t: +t.toFixed(3), x: 0.5, mode: "cut", scene: !err, done: false }));
+  E.dirty = true;
+  const rel = relScenes(); E.sel = rel.length ? rel[0] : 0;
+  ev().currentTime = E.start;
+  renderTimeline();
+  if (!err) suggestPositions(false);      // first draft of the window position for every scene
+  $("edMsg").textContent = err ? "Scene detection failed: " + err : `${rel.length} scenes found. Adjust the window, then press N for the next scene. Missed a cut? Raise the sensitivity, or press C on the first frame of the new scene.`;
+}
+
+function nextSceneT(i) { for (let j = i + 1; j < E.kfs.length; j++) if (E.kfs[j].scene) return E.kfs[j].t; return E.clip.pad_end; }
+function relScenes() {            // scene keyframes that overlap the trimmed range
+  const out = [];
+  E.kfs.forEach((q, i) => { if (q.scene && nextSceneT(i) > E.start + 0.01 && q.t < E.end - 0.01) out.push(i); });
+  return out;
+}
+function curSceneIdx(rel) {
+  let cur = 0; const t = ev().currentTime + 0.5 / E.fps;
+  rel.forEach((i, n) => { if (E.kfs[i].t <= t) cur = n; });
+  return cur;
+}
+function goScene(dir) {
+  const rel = relScenes(); if (!rel.length) return;
+  const cur = curSceneIdx(rel), n = cur + dir;
+  if (n < 0 || n >= rel.length) { $("edMsg").textContent = dir > 0 ? "That was the last scene." : "This is the first scene."; return; }
+  const from = E.kfs[rel[cur]], q = E.kfs[rel[n]];
+  if (dir > 0) { from.done = true; if (!q.done && q.sx == null) q.x = from.x; }    // carry forward only when there is no suggestion     // carry the position forward, so you only fix what is wrong
+  E.sel = rel[n]; E.dirty = true; $("edMsg").textContent = "";
+  const v = ev(); v.pause();
+  v.currentTime = clamp(Math.max(q.t, E.start) + 0.5 / E.fps, E.start, E.end);
+  renderTimeline();
+}
+
+function closeEditor() {
+  if (!E) return;
+  if (E.dirty && !confirm("You have unsaved changes. Close anyway?")) return;
+  cancelAnimationFrame(E.raf); ev().pause(); ev().removeAttribute("src"); ev().load();
+  $("ed").hidden = true; E = null;
+}
+
+// Guess the real frame rate by timing a handful of played frames.
+function detectFps() {
+  const v = ev();
+  if (!("requestVideoFrameCallback" in v)) return;
+  const times = []; const wasMuted = v.muted; v.muted = true;
+  const step = (now, md) => {
+    times.push(md.mediaTime);
+    if (times.length < 12) { v.requestVideoFrameCallback(step); return; }
+    v.pause(); v.muted = wasMuted;
+    const d = []; for (let i = 1; i < times.length; i++) if (times[i] > times[i-1]) d.push(times[i] - times[i-1]);
+    if (d.length && E) {
+      const raw = 1 / Math.min(...d);
+      E.fps = FPS_LIST.reduce((a, b) => Math.abs(b - raw) < Math.abs(a - raw) ? b : a);
+    }
+    v.currentTime = E ? E.start : 0;
+  };
+  v.requestVideoFrameCallback(step); v.play().catch(() => {});
+}
+
+function fitPreview() {          // size the 9:16 preview to the free height, so nothing needs scrolling
+  const w = $("pvWrap"); w.style.removeProperty("--pvw");
+  const h = w.clientHeight;
+  if (h > 0 && window.innerWidth > 800) w.style.setProperty("--pvw", Math.floor(h * 9 / 16) + "px");
+}
+function fitStage() {
+  fitPreview();
+  const v = ev(), box = $("edBox"), st = $("stage");
+  if (!v.videoWidth) return;
+  const ar = v.videoWidth / v.videoHeight;
+  let w = box.clientWidth, h = w / ar;
+  if (h > box.clientHeight) { h = box.clientHeight; w = h * ar; }
+  st.style.width = w + "px"; st.style.height = h + "px";
+}
+window.addEventListener("resize", () => { if (E) fitStage(); });
+
+// Window position (0..1) at time t. A keyframe's mode says how we ARRIVE at it:
+// "cut" = jump there at its time, "pan" = glide from the previous keyframe.
+function xAt(t) {
+  const k = E.kfs;
+  if (!k.length) return 0.5;
+  if (t <= k[0].t) return k[0].x;
+  let i = 0; while (i + 1 < k.length && k[i + 1].t <= t) i++;
+  const n = k[i + 1];
+  if (!n || n.mode === "cut") return k[i].x;
+  const u = (t - k[i].t) / (n.t - k[i].t), s = u * u * (3 - 2 * u);
+  return k[i].x + (n.x - k[i].x) * s;
+}
+
+function tick() {
+  if (!E) return;
+  const v = ev();
+  if (!v.paused && v.currentTime >= E.end) { v.pause(); v.currentTime = E.end; }
+  if (v.currentTime < E.start - 0.05 || v.currentTime > E.end + 0.05) { if (!v.seeking) v.currentTime = E.start; }
+  draw();
+  E.raf = requestAnimationFrame(tick);
+}
+
+function cropWidthFrac() { const v = ev(); return v.videoWidth ? (9 / 16) * (v.videoHeight / v.videoWidth) : 0.3; }
+
+function draw() {
+  if (!$("tlPh")) return;
+  const v = ev(), t = v.currentTime, cw = cropWidthFrac();
+  const x = E.drag ? E.drag.x : xAt(t);
+  const c = $("crop"); c.style.width = (cw * 100) + "%"; c.style.left = (x * (1 - cw) * 100) + "%";
+  if (v.videoWidth) {                                   // live 9:16 preview
+    const sw = v.videoHeight * 9 / 16, sx = x * (v.videoWidth - sw);
+    const pc = $("pv").getContext("2d");
+    pc.drawImage(v, sx, 0, sw, v.videoHeight, 0, 0, 270, 480);
+    if (E.captions) { const cue = E.cues.find(q => t >= q.start && t < q.end); if (cue) drawCaption(pc, cue.text); }
+  }
+  const span = E.clip.pad_end - E.clip.pad_start;
+  $("tlPh").style.left = ((t - E.clip.pad_start) / span * 100) + "%";
+  $("bPlay").textContent = v.paused ? "Play" : "Pause";
+  $("edTime").textContent = `${(t - E.start).toFixed(2)}s of ${(E.end - E.start).toFixed(1)}s · frame ${Math.round(t * E.fps)} · ${E.fps} fps`;
+  $("edSub").textContent = `${fmt(E.start)} to ${fmt(E.end)} (${(E.end - E.start).toFixed(1)}s)` + (E.approved ? " · approved" : "");
+  const k = E.kfs[E.sel], rel = relScenes();
+  $("kfInfo").textContent = rel.length ? `Scene ${curSceneIdx(rel) + 1} of ${rel.length} · ${rel.filter(i => E.kfs[i].done).length} reviewed` : "none";
+  $("kfMode").textContent = k ? (k.mode === "cut" ? "Cut (jump)" : "Pan (glide)") : "Cut";
+}
+
+function renderTimeline() {
+  const c = E.clip, span = c.pad_end - c.pad_start, p = t => ((t - c.pad_start) / span * 100) + "%";
+  $("tl").innerHTML =
+    `<div class="core" style="left:${p(c.start)};width:${(c.end - c.start) / span * 100}%"></div>` +
+    `<div class="dim" style="left:0;width:${p(E.start)}"></div>` +
+    `<div class="dim" style="left:${p(E.end)};right:0"></div>` +
+    E.kfs.map((k, i) => `<div class="kf ${k.mode} ${k.scene && !k.done ? "todo" : ""} ${k.scene && !k.done && k.sc != null && k.sc < 0.5 ? "lowc" : ""} ${k.done ? "done" : ""} ${i === E.sel ? "sel" : ""}" data-k="${i}" title="${k.sx != null ? "Suggested by " + k.ss + ", confidence " + Math.round(k.sc * 100) + "%" : ""}" style="left:${p(k.t)}"></div>`).join("") +
+    `<div class="h" data-h="s" style="left:${p(E.start)}"></div><div class="h" data-h="e" style="left:${p(E.end)}"></div>` +
+    `<div class="ph" id="tlPh"></div>`;
+}
+
+// ---- timeline pointer handling: trim handles, keyframe markers, scrubbing
+$("tl").addEventListener("pointerdown", e => {
+  if (!E) return;
+  const tl = $("tl"), r = tl.getBoundingClientRect(), c = E.clip, span = c.pad_end - c.pad_start;
+  const tAt = ev => c.pad_start + clamp((ev.clientX - r.left) / r.width, 0, 1) * span;
+  const h = e.target.dataset.h, k = e.target.dataset.k;
+  tl.setPointerCapture(e.pointerId); ev().pause();
+  if (k !== undefined) { E.sel = +k; ev().currentTime = E.kfs[E.sel].t; renderTimeline(); tl._mode = null; return; }
+  tl._mode = h || "seek";
+  const move = m => {
+    const t = tAt(m);
+    if (tl._mode === "s") { E.start = clamp(t, c.pad_start, E.end - 1); E.dirty = true; ev().currentTime = E.start; renderTimeline(); }
+    else if (tl._mode === "e") { E.end = clamp(t, E.start + 1, c.pad_end); E.dirty = true; ev().currentTime = E.end; renderTimeline(); }
+    else ev().currentTime = clamp(t, E.start, E.end);
+  };
+  const up = () => { tl.removeEventListener("pointermove", move); tl.removeEventListener("pointerup", up); };
+  tl.addEventListener("pointermove", move); tl.addEventListener("pointerup", up); move(e);
+});
+
+// ---- dragging the 9:16 window: creates/updates a keyframe at the playhead
+$("crop").addEventListener("pointerdown", e => {
+  if (!E) return;
+  const v = ev(), st = $("stage"), cw = cropWidthFrac(), range = st.clientWidth * (1 - cw);
+  if (range <= 0) return;
+  v.pause(); $("crop").setPointerCapture(e.pointerId);
+  const x0 = xAt(v.currentTime), px0 = e.clientX;
+  E.drag = { x: x0 };
+  const move = m => { E.drag.x = clamp(x0 + (m.clientX - px0) / range, 0, 1); };
+  const up = () => {
+    $("crop").removeEventListener("pointermove", move); $("crop").removeEventListener("pointerup", up);
+    setKeyframe(v.currentTime, E.drag.x); E.drag = null;
+  };
+  $("crop").addEventListener("pointermove", move); $("crop").addEventListener("pointerup", up);
+});
+
+function setKeyframe(t, x, extra) {
+  const tol = 1 / E.fps, k = E.kfs;
+  let i = k.findIndex(q => Math.abs(q.t - t) < tol);
+  if (i < 0 && !extra) {          // dragging inside a scene: move that scene's own keyframe
+    let j = -1; k.forEach((q, n) => { if (q.t <= t) j = n; });
+    const nx = k[j + 1];
+    if (j >= 0 && k[j].mode === "cut" && (!nx || nx.mode === "cut")) i = j;
+  }
+  if (i >= 0) { k[i].x = x; if (k[i].scene) k[i].done = true; }
+  else {                          // an extra keyframe inside a scene (for a subject that moves)
+    k.push({ t: +t.toFixed(3), x, mode: "pan" });
+    k.sort((a, b) => a.t - b.t);
+    i = k.findIndex(q => Math.abs(q.t - t) < tol);
+  }
+  E.sel = i; E.dirty = true; renderTimeline();
+}
+
+function stepFrames(n) {
+  const v = ev(); v.pause();
+  const f = Math.round(v.currentTime * E.fps) + n;
+  v.currentTime = clamp((f + 0.5) / E.fps, E.start, E.end);   // +0.5 lands inside the frame, not on its edge
+}
+
+$("bPlay").onclick = () => { const v = ev(); if (v.paused) { if (v.currentTime >= E.end - 0.05) v.currentTime = E.start; v.play(); } else v.pause(); };
+$("bBack").onclick = () => stepFrames(-1);
+$("bFwd").onclick = () => stepFrames(1);
+$("bKf").onclick = () => setKeyframe(ev().currentTime, xAt(ev().currentTime), true);
+$("bNextS").onclick = () => goScene(1);
+$("scSens").onchange = e => {
+  e.target.blur();
+  if (E.kfs.some(k => k.done) && !confirm("Re-detect scenes with this sensitivity? Your reviewed positions will be reset.")) return;
+  buildScenes();
+};
+function markCut() {            // add a scene boundary the detector missed
+  const v = ev(); v.pause();
+  const t = Math.floor(v.currentTime * E.fps) / E.fps, tol = 1 / E.fps;
+  if (E.kfs.some(q => q.scene && Math.abs(q.t - t) < tol)) { $("edMsg").textContent = "There is already a scene cut here."; return; }
+  E.kfs.push({ t: +t.toFixed(3), x: xAt(t), mode: "cut", scene: true, done: false });
+  E.kfs.sort((a, b) => a.t - b.t);
+  E.sel = E.kfs.findIndex(q => q.scene && Math.abs(q.t - t) < tol); E.dirty = true;
+  $("edMsg").textContent = "Scene cut added."; renderTimeline(); suggestPositions(false);
+}
+$("bCut").onclick = markCut;
+
+// ---- automatic first-draft positions (Claude looks at one frame per scene)
+let sugBusy = false;
+async function suggestPositions(force) {
+  if (!E || sugBusy) return;
+  const me = E, todo = E.kfs.filter(k => k.scene && !k.done && (force || k.sx == null));
+  if (!todo.length) { $("sugInfo").textContent = "Every scene already has a suggestion or was reviewed."; return; }
+  sugBusy = true; $("bSuggest").disabled = true; $("sugInfo").textContent = `Looking at ${todo.length} scenes...`;
+  try {
+    const r = await fetch(`/api/clips/${me.clip.id}/suggest`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ times: todo.map(k => k.t), force: !!force }) });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const j = await r.json();
+    if (E !== me) return;                                  // the editor was closed or switched meanwhile
+    j.suggestions.forEach((s, i) => { const k = todo[i]; if (k && !k.done) { k.x = s.x; k.sx = s.x; k.sc = s.conf; k.ss = s.src; } });
+    E.dirty = true; renderTimeline();
+    const low = todo.filter(k => k.sc != null && k.sc < 0.5).length;
+    $("sugInfo").textContent = `Suggested positions for ${todo.length} scenes` + (low ? `. ${low} marked in red are uncertain: check those first.` : ".") + (j.warning ? " " + j.warning : "");
+  } catch (e) { $("sugInfo").textContent = "Suggestions failed: " + e.message; }
+  finally { sugBusy = false; $("bSuggest").disabled = false; }
+}
+$("bSuggest").onclick = () => suggestPositions(true);
+
+// ---- active editing time (for the pilot statistics): counts only while the editor is open, visible and being used
+let lastAct = 0;
+["pointerdown", "keydown", "pointermove", "wheel"].forEach(n => document.addEventListener(n, () => { lastAct = Date.now(); }, true));
+setInterval(() => {
+  if (!E || $("ed").hidden || document.hidden) return;
+  if (Date.now() - lastAct < 30000 || !ev().paused) E.secs = (E.secs || 0) + 1;
+}, 1000);
+$("bPrevS").onclick = () => goScene(-1);
+$("kfReset").onclick = () => { if (confirm("Redo scene detection? This replaces all keyframes of this clip.")) buildScenes(); };
+$("kfDel").onclick = () => {
+  if (E.kfs.length <= 1) { $("edMsg").textContent = "Keep at least one keyframe."; return; }
+  E.kfs.splice(E.sel, 1); E.sel = clamp(E.sel - 1, 0, E.kfs.length - 1); E.dirty = true; renderTimeline();
+};
+$("kfMode").onclick = () => { const k = E.kfs[E.sel]; if (k) { k.mode = k.mode === "cut" ? "pan" : "cut"; E.dirty = true; renderTimeline(); } };
+$("edTitleIn").oninput = e => { E.title = e.target.value; E.dirty = true; };
+$("edCap").onchange = e => { E.captions = e.target.checked; E.dirty = true; };
+$("edClose").onclick = closeEditor;
+
+async function saveEdit(approved) {
+  const body = { start: E.start, end: E.end, fps: E.fps, keyframes: E.kfs, title: E.title, captions_on: E.captions, approved, editor_seconds: Math.round(E.secs || 0) };
+  const r = await fetch(`/api/clips/${E.clip.id}/edit`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!r.ok) { $("edMsg").textContent = "Save failed: " + ((await r.json()).detail || r.statusText); return false; }
+  E.dirty = false; E.secs = 0; E.approved = approved; $("edMsg").textContent = approved ? "Approved." : "Saved.";
+  E.clip.approved = approved ? 1 : E.clip.approved; return true;
+}
+$("bSave").onclick = () => saveEdit(E.approved);
+$("bApprove").onclick = async () => {
+  const rel = relScenes(); if (rel.length) E.kfs[rel[curSceneIdx(rel)]].done = true;
+  const left = rel.filter(i => !E.kfs[i].done).length;
+  if (left && !confirm(`${left} scene(s) not reviewed yet. Approve anyway?`)) return;
+  if (!(await saveEdit(true))) return;
+  const i = curClips.findIndex(c => c.id === E.clip.id), next = curClips[i + 1];
+  E.dirty = false; closeEditor(); lastClipsFor = null; refresh();
+  if (next) openEditor(next.id);
+};
+
+document.addEventListener("keydown", e => {
+  if (!E || $("ed").hidden) return;
+  if (e.target.tagName === "INPUT" && e.target.type === "text") return;
+  if (e.key === "Escape") closeEditor();
+  else if (e.key === " ") { e.preventDefault(); $("bPlay").click(); }
+  else if (e.key === "ArrowLeft") { e.preventDefault(); e.shiftKey ? (ev().pause(), ev().currentTime = clamp(ev().currentTime - 1, E.start, E.end)) : stepFrames(-1); }
+  else if (e.key === "ArrowRight") { e.preventDefault(); e.shiftKey ? (ev().pause(), ev().currentTime = clamp(ev().currentTime + 1, E.start, E.end)) : stepFrames(1); }
+  else if (e.key.toLowerCase() === "c") markCut();
+  else if (e.key.toLowerCase() === "n") goScene(1);
+  else if (e.key.toLowerCase() === "p") goScene(-1);
+  else if (e.key.toLowerCase() === "k") $("bKf").click();
+  else if (e.key === "Delete" || e.key === "Backspace") $("kfDel").click();
+});
+
+fetch("/api/status").then(r => r.json()).then(j => { $("keywarn").hidden = j.ai_key; }).catch(() => {});
+/* ---- captions ---- */
+function capLevel(c) {            // how far to trust the transcript text for this clip
+  const v = c.caption_conf;
+  if (v == null || v === "") return { l: "unknown", cls: "" };
+  return v >= 0.8 ? { l: "high", cls: "ok" } : v >= 0.6 ? { l: "medium", cls: "off" } : { l: "low", cls: "bad" };
+}
+function capTag(c) { const x = capLevel(c); return `<span class="tag ${x.cls}" title="Caption confidence ${c.caption_conf}">captions: ${x.l}</span>`; }
+function defaultCaptions(c) {     // verified or confident text starts on, doubtful text starts off
+  const g = String(c.caption_gate || "").toLowerCase();
+  if (["off", "low", "no", "false", "0", "hidden", "gated"].includes(g)) return false;
+  if (["on", "high", "yes", "true", "1", "ok", "verified", "script"].includes(g)) return true;
+  const v = c.caption_conf; return v == null || v === "" || v >= 0.7;
+}
+function drawCaption(ctx, text) {   // same look and position as the burned-in captions, at preview size
+  const fs = 19;
+  ctx.font = `bold ${fs}px "Noto Sans Devanagari","Nirmala UI","Mangal",sans-serif`;
+  ctx.textAlign = "center"; ctx.lineJoin = "round"; ctx.lineWidth = 4; ctx.strokeStyle = "#000"; ctx.fillStyle = "#fff";
+  const maxW = 270 - 44, lines = []; let cur = "";
+  for (const w of text.split(" ")) { const n = cur ? cur + " " + w : w; if (cur && ctx.measureText(n).width > maxW) { lines.push(cur); cur = w; } else cur = n; }
+  if (cur) lines.push(cur);
+  const bottom = 480 * (1 - 360 / 1920) - 4;
+  lines.forEach((ln, i) => { const y = bottom - (lines.length - 1 - i) * fs * 1.25; ctx.strokeText(ln, 135, y); ctx.fillText(ln, 135, y); });
+}
+
+function updateRenders(v) {          // refresh each clip's render status without rebuilding the page
+  if (v.status !== "done") return;
+  v.clips.forEach(c => {
+    const el = $("rend-" + c.id); if (!el) return;
+    const st = c.render_status, pr = Math.round(c.render_progress);
+    let h;
+    if (st === "queued" || st === "rendering") h = `${st === "queued" ? "Waiting..." : "Rendering " + pr + "%"}<div class="bar"><i style="width:${pr}%"></i></div>`;
+    else if (st === "done" || st === "stale") {
+      const ps = c.post_status;
+      h = (st === "stale" ? '<span class="off">Edited since render</span>' : '<span class="ok">Rendered</span>') +
+        `<div class="two"><a class="btn ghost" href="/api/clips/${c.id}/render/file?download=1">Download</a><button class="ghost" onclick="watchClip(${c.id})">Watch</button></div>` +
+        `<button class="ghost" onclick="startRender(${c.id})">Render again</button>`;
+      if (st === "done") {
+        if (ps === "uploading") h += `Uploading ${Math.round(c.post_progress)}%<div class="bar"><i style="width:${Math.round(c.post_progress)}%"></i></div>`;
+        else if (ps === "done") h += `<span class="ok">Posted</span><a class="btn ghost" href="${esc(c.post_url)}" target="_blank">Open on YouTube</a>`;
+        else h += (ps === "failed" ? `<span class="bad">Upload failed: ${esc(c.post_error)}</span>` : "") + `<button onclick="openPost(${c.id})">Post to YouTube</button>`;
+      }
+    }
+    else if (c.approved) h = (st === "failed" ? `<span class="bad">Render failed: ${esc(c.render_error)}</span><br>` : "") + `<button onclick="startRender(${c.id})">${st === "failed" ? "Try again" : "Render"}</button>`;
+    else h = "Approve in the editor to render";
+    if (el.dataset.h !== h) { el.innerHTML = h; el.dataset.h = h; }
+  });
+}
+/* ---- player + YouTube posting ---- */
+function watchClip(id) {
+  const v = $("plv"); $("plErr").textContent = "";
+  v.src = `/api/clips/${id}/render/file?t=${Date.now()}`; $("pl").hidden = false; v.play().catch(() => {});
+}
+function closePlayer() { const v = $("plv"); v.pause(); v.removeAttribute("src"); v.load(); $("pl").hidden = true; }
+$("plv").onerror = () => { if ($("plv").getAttribute("src")) $("plErr").textContent = "The browser could not play this file. Use Download instead."; };
+$("pl").onclick = e => { if (e.target === $("pl")) closePlayer(); };
+
+let postClip = null;
+function closePost() { $("po").hidden = true; }
+async function openPost(id) {
+  postClip = id; $("po").hidden = false; $("poMsg").textContent = ""; $("poGenMsg").textContent = "";
+  $("poTitle").value = ""; $("poDesc").value = ""; $("poTags").value = ""; $("poGo").disabled = true;
+  const st = await (await fetch("/api/youtube/status")).json();
+  $("poConn").innerHTML = !st.libs ? "Missing packages. In the terminal run: <b>pip install google-api-python-client google-auth-oauthlib</b> and restart the server."
+    : !st.configured ? "Put Google's client_secret.json next to run_server.py (see the setup steps), then restart the server."
+    : !st.connected ? 'YouTube is not connected yet. <a class="btn" href="/api/youtube/connect">Connect YouTube</a>' : "";
+  $("poGo").disabled = !st.connected;
+  $("poTpl").value = (await (await fetch("/api/settings/youtube-template")).json()).template;
+  if (st.connected) generateMeta();
+}
+async function generateMeta() {
+  $("poGenMsg").textContent = "Claude is writing..."; $("poGen").disabled = true;
+  try {
+    const r = await fetch(`/api/clips/${postClip}/youtube/metadata`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ template: $("poTpl").value }) });
+    const j = await r.json(); if (!r.ok) throw new Error(j.detail || r.statusText);
+    $("poTitle").value = j.title; $("poDesc").value = j.description; $("poTags").value = j.tags.join(", "); $("poGenMsg").textContent = "";
+  } catch (e) { $("poGenMsg").textContent = "Failed: " + e.message; }
+  $("poGen").disabled = false;
+}
+$("poGen").onclick = generateMeta;
+$("poGo").onclick = async () => {
+  const body = { title: $("poTitle").value.trim(), description: $("poDesc").value, tags: $("poTags").value.split(",").map(t => t.trim()).filter(Boolean), privacy: $("poPriv").value };
+  if (!body.title) { $("poMsg").textContent = "Add a title first."; return; }
+  if (body.privacy === "public" && !confirm("Make this video public on YouTube right away?")) return;
+  $("poGo").disabled = true;
+  const r = await fetch(`/api/clips/${postClip}/youtube/upload`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!r.ok) { $("poMsg").textContent = (await r.json()).detail || r.statusText; $("poGo").disabled = false; return; }
+  closePost(); refresh();
+};
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if (!$("pl").hidden) closePlayer(); else if (!$("po").hidden) closePost();
+}, true);
+
+async function startRender(id) {
+  const r = await fetch(`/api/clips/${id}/render`, { method: "POST" });
+  if (!r.ok) alert((await r.json()).detail || r.statusText);
+  refresh();
+}
+
+refresh(); setInterval(refresh, 2500);
+</script>
+</body>
+</html>
